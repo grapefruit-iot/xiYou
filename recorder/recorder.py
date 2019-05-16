@@ -1,55 +1,93 @@
-# -*- coding：utf-8 -*-
-# -*- author：zzZ_CMing  CSDN address:https://blog.csdn.net/zzZ_CMing
-# -*- 2018/07/12; 15:19
-# -*- python3.5
 import pyaudio
-import wave
-input_filename = "input.wav"               # 麦克风采集的语音输入
-input_filepath = "音频存储位置"              # 输入文件的path
-in_path = input_filepath + input_filename
+import wave 
+
+CHUNK = 256
+FORMAT = pyaudio.paInt16
+CHANNELS = 1                # 声道数
+RATE = 11025                # 采样率
+
+class AudioRecorder():
+    def __init__(self, isSave, filepath=None):
+        self.isSave = isSave
+        if isSave :
+            if filepath is None :
+                self.filepath = "demo.wav"
+            else :
+                self.filepath = filepath
+        self.need_cut = False 
+        self.cut_buff = []
+        self.data = []
+        self.status = False
+
+    def cut_stream(self):
+        self.need_cut = False 
+        self.cut_buff.append( b''.join(self.data))
+        self.data = []
+        print(len(self.cut_buff[-1]))
+        print('cut !!')
 
 
+    def callback(self, in_data , frame_count , time_info , status):
+        self.data.append(in_data)
+        if self.need_cut :
+            self.cut_stream()
+        return (None , pyaudio.paContinue)
 
 
-def get_audio(filepath):
-    aa = str(input("是否开始录音？   （是/否）"))
-    if aa == str("是") :
-        CHUNK = 256
-        FORMAT = pyaudio.paInt16
-        CHANNELS = 1                # 声道数
-        RATE = 11025                # 采样率
-        RECORD_SECONDS = 5
-        WAVE_OUTPUT_FILENAME = filepath
-        p = pyaudio.PyAudio()
+    def record(self ):
+        if self.status == True :
+            print('already recording ')
+            return
+            
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format = FORMAT,
+                        channels =CHANNELS,
+                        rate = RATE,
+                        input = True , 
+                        output = False , 
+                        frames_per_buffer = CHUNK,
+                        stream_callback = self.callback
+                        )
+        self.status = True
+        # frames = []
 
-        stream = p.open(format=FORMAT,
-                        channels=CHANNELS,
-                        rate=RATE,
-                        input=True,
-                        frames_per_buffer=CHUNK)
+        # for i in range(0,int(RATE/CHUNK * record_seconds)):
+        #     data = stream.read(CHUNK)
+        #     frames.append(data)
+    
+    def stopRecord(self):
+        if self.status == False:
+            return 
 
-        print("*"*10, "开始录音：请在5秒内输入语音")
-        frames = []
-        for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-            data = stream.read(CHUNK)
-            frames.append(data)
-        print("*"*10, "录音结束\n")
+        self.status = False
+        self.stream.stop_stream()
+        self.stream.close()
+        self.p.terminate()
 
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
+        # self.frames = b''.join(frames)
+        self.cut_stream()
+        if self.isSave:
+            wf = wave.open(self.filepath,'wb')
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(self.p.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
+            wf.writeframes(b''.join(self.cut_buff))
+            wf.close()
 
-        wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(p.get_sample_size(FORMAT))
-        wf.setframerate(RATE)
-        wf.writeframes(b''.join(frames))
-        wf.close()
-    elif aa == str("否"):
-        exit()
-    else:
-        print("无效输入，请重新选择")
-        get_audio(in_path)
+        return self.cut_buff
 
-# 联合上一篇博客代码使用，就注释掉下面，单独使用就不注释
-get_audio(in_path)
+if __name__ == "__main__":
+    recorder = AudioRecorder(True)
+    recorder.record()
+
+    while True :
+        a = input()
+        if a == 'q':
+            break 
+        if a == 'c':
+            recorder.cut_stream()
+    data = recorder.stopRecord()
+
+
+    print(len(data))
+    print(len(b''.join(data)))
