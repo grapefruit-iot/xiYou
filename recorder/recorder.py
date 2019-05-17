@@ -1,6 +1,8 @@
 import pyaudio
 import wave 
 
+from demo import getMsp
+
 CHUNK = 256
 FORMAT = pyaudio.paInt16
 CHANNELS = 1                # 声道数
@@ -14,27 +16,40 @@ class AudioRecorder():
                 self.filepath = "demo.wav"
             else :
                 self.filepath = filepath
-        self.need_cut = False 
         self.cut_buff = []
         self.data = []
         self.status = False
 
+
     def cut_stream(self):
-        self.need_cut = False 
-        self.cut_buff.append( b''.join(self.data))
+        '''
+        将音频流进行切分
+        return  cut_id , cut_data
+        cut_id : 切分序号
+        cut_data : 比特流音频文件
+        '''
+
+        if len(self.data) == 0:
+            print('data is empty')
+            return None 
+
+        cut_data = b''.join(self.data)
+        self.cut_buff.append(cut_data )
         self.data = []
-        print(len(self.cut_buff[-1]))
-        print('cut !!')
+        return  len(self.cut_buff) , cut_data
 
 
     def callback(self, in_data , frame_count , time_info , status):
         self.data.append(in_data)
-        if self.need_cut :
-            self.cut_stream()
+
         return (None , pyaudio.paContinue)
 
 
-    def record(self ):
+    def startRecord(self ):
+        '''
+        异步方式开始录制声音
+        '''
+
         if self.status == True :
             print('already recording ')
             return
@@ -49,13 +64,11 @@ class AudioRecorder():
                         stream_callback = self.callback
                         )
         self.status = True
-        # frames = []
-
-        # for i in range(0,int(RATE/CHUNK * record_seconds)):
-        #     data = stream.read(CHUNK)
-        #     frames.append(data)
     
     def stopRecord(self):
+        '''
+        结束声音录制，返回切分后的声音比特流
+        '''
         if self.status == False:
             return 
 
@@ -78,16 +91,26 @@ class AudioRecorder():
 
 if __name__ == "__main__":
     recorder = AudioRecorder(True)
-    recorder.record()
+    recorder.startRecord()
+    print('recorder start ok ')
+    msp= getMsp()
 
     while True :
         a = input()
         if a == 'q':
             break 
         if a == 'c':
-            recorder.cut_stream()
+            i ,data = recorder.cut_stream()
+
+            result = msp.toText(data)
+            print('result ok ' , result)
     data = recorder.stopRecord()
-
-
+    data = b''.join(data)
     print(len(data))
-    print(len(b''.join(data)))
+
+    adata = open('demo.wav' , 'rb')
+    adata = adata.read()
+
+    print( ' data len , adata len ' , len(data) , len(adata))
+
+    print ('is equal ' ,data == adata)

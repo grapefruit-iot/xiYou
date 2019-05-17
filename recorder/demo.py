@@ -26,6 +26,7 @@ class Msp():
     def __init__(self,dll):
         self.dll = dll 
         self.session_begin_params = b"sub = iat, domain = iat, language = zh_cn, accent = mandarin, sample_rate = 16000, result_type = plain, result_encoding = utf8"
+        self.piceLne = 1638*2
 
     def login(self , login_params):
         ret = self.dll.MSPLogin(None,None,login_params)
@@ -37,14 +38,13 @@ class Msp():
         self.dll.QISRSessionBegin.restype = c_char_p
         sessionID = self.dll.QISRSessionBegin(None,self.session_begin_params,byref(ret))
         
-        piceLne = 1638*2
+        piceLne = self.piceLne
         epStatus = c_int()
         recogStatus = c_int()
 
         wavFile = open(audiofile , 'rb')
 
-        wavData =  wavFile.read(piceLne)
-        ret = self.dll.QISRAudioWrite(sessionID,wavData , len(wavData),MSP_AUDIO_SAMPLE_FIRST,
+        ret = self.dll.QISRAudioWrite(sessionID, None , 0 ,MSP_AUDIO_SAMPLE_FIRST,
                                     byref(epStatus),byref(recogStatus))
         time.sleep(0.1)
         wavData = wavFile.read(piceLne)
@@ -87,6 +87,64 @@ class Msp():
 
         return result 
 
+    def toText(self, audio_data):
+        # idnum , audio_data  = audio_struct 
+        
+        ret = c_int()
+        sessionID = c_voidp()
+        self.dll.QISRSessionBegin.restype = c_char_p
+        sessionID = self.dll.QISRSessionBegin(None,self.session_begin_params,byref(ret))
+        
+        piceLne = self.piceLne
+        epStatus = c_int()
+        recogStatus = c_int()
+
+        ret = self.dll.QISRAudioWrite(sessionID, None ,0, MSP_AUDIO_SAMPLE_FIRST,
+                                    byref(epStatus),byref(recogStatus))
+        wavData = audio_data[:piceLne]
+        audio_data = audio_data[piceLne:]
+
+        i = 0
+        while wavData :
+            ret = self.dll.QISRAudioWrite(sessionID,wavData,len(wavData),MSP_AUDIO_SAMPLE_CONTINUE,
+                                    byref(epStatus),byref(recogStatus))
+            i +=1
+            if i%100==0:
+                print('len(wavData):', len(wavData), 'QISRAudioWrite ret:', ret, 'epStatus:', epStatus.value, 'recogStatus:', recogStatus.value)
+
+            if ret != MSP_SUCCESS:
+                print("failed ,ret->{}".format(ret))
+                break 
+            if epStatus.value == MSP_EP_AFTER_SPEECH:
+                print("over break ")
+                break 
+
+            wavData = audio_data[:piceLne]
+            audio_data = audio_data[piceLne:]
+
+            time.sleep(0.005)
+
+
+        ret = self.dll.QISRAudioWrite(sessionID,None,0,MSP_AUDIO_SAMPLE_LAST,
+                                    byref(epStatus),byref(recogStatus))
+
+        result = ''
+        while recogStatus.value != MSP_REC_STATUS_COMPLETE:
+            ret = c_int()
+            self.dll.QISRGetResult.restype = c_char_p
+            retstr = self.dll.QISRGetResult(sessionID, byref(recogStatus),0 , byref(ret))
+
+            if ret.value != MSP_SUCCESS:
+                print ('get result failed ,ret->{}'.format(ret.value))
+                break 
+            if retstr :
+                result +=retstr.decode()
+            time.sleep(0.1)
+
+        return  result 
+
+
+
     def logout(self):
         ret = self.dll.MSPLogout()
         print("logout result ->{}".format(ret))
@@ -115,7 +173,11 @@ if __name__ == "__main__":
     # msp = Msp(dll)
     # msp.login(login_params)
     msp = getMsp()
-    result = msp.isr('cy11.wav')
+    
+    a = open('demo.wav','rb')
+    a = a.read()
+    result = msp.toText(a)
+    #result = msp.isr('cy11.wav')
     msp.logout()
     print(result)
     
