@@ -82,7 +82,7 @@ class Xiyou( QMainWindow , Ui_MainWindow):
         print ('timer time out ')
         self.timer.start(self.cut_sec)
         audio_struct  = self.recorder.cut_stream()
-
+        print('cut idnum ',audio_struct[0])
         self.recg_thread = MspThread(audio_struct)
         self.recg_thread.sinOut.connect(self.recg_finish)
         self.recg_thread.start()
