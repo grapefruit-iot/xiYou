@@ -1,21 +1,21 @@
 import pyaudio
 import wave 
-
+import os 
 from demo import getMsp
 
 CHUNK = 256
 FORMAT = pyaudio.paInt16
 CHANNELS = 1                # 声道数
-RATE = 11025                # 采样率
+RATE = 16000                # 采样率
 
 class AudioRecorder():
-    def __init__(self, isSave, filepath=None):
-        self.isSave = isSave
-        if isSave :
-            if filepath is None :
-                self.filepath = "demo.wav"
-            else :
-                self.filepath = filepath
+    def __init__(self, filepath=None):
+        # self.isSave = isSave
+        # if isSave :
+        #     if filepath is None :
+        #         self.filepath = "demo.wav"
+        #     else :
+        self.filepath = filepath
         self.cut_buff = []
         self.data = []
         self.status = False
@@ -36,6 +36,14 @@ class AudioRecorder():
         cut_data = b''.join(self.data)
         self.cut_buff.append(cut_data )
         self.data = []
+
+        wf = wave.open('tmp.wav','w')
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(self.p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(cut_data)
+        wf.close()
+
         return  len(self.cut_buff) , cut_data
 
 
@@ -65,7 +73,7 @@ class AudioRecorder():
                         )
         self.status = True
     
-    def stopRecord(self):
+    def stopRecord(self,file_path=None):
         '''
         结束声音录制，返回切分后的声音比特流
         '''
@@ -79,15 +87,17 @@ class AudioRecorder():
 
         # self.frames = b''.join(frames)
         self.cut_stream()
-        if self.isSave:
-            wf = wave.open(self.filepath,'wb')
+        if file_path:
+            print('save wav ')
+            wf = wave.open(file_path,'wb')
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(self.p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
             wf.writeframes(b''.join(self.cut_buff))
             wf.close()
-
-        return self.cut_buff
+        cut_buff = self.cut_buff
+        self.cut_buff=[]
+        return cut_buff
 
 if __name__ == "__main__":
     recorder = AudioRecorder(True)
